@@ -13,11 +13,11 @@ const filterOf = (query) => {
   return { from: q.from, to: q.to, plotId: q.plot_id };
 };
 
-router.get('/records/summary', (req, res) => res.json(records.summary(req.user.id, filterOf(req.query))));
+router.get('/records/summary', async (req, res) => res.json(await records.summary(req.user.id, filterOf(req.query))));
 
-router.get('/expenses', (req, res) => res.json({ expenses: records.listExpenses(req.user.id, filterOf(req.query)) }));
+router.get('/expenses', async (req, res) => res.json({ expenses: await records.listExpenses(req.user.id, filterOf(req.query)) }));
 
-router.post('/expenses', (req, res) => {
+router.post('/expenses', async (req, res) => {
   const body = parse(
     z.object({
       plot_id: id.optional().nullable(),
@@ -28,17 +28,17 @@ router.post('/expenses', (req, res) => {
     }),
     req.body,
   );
-  res.status(201).json({ id: records.addExpense(req.user.id, body) });
+  res.status(201).json({ id: await records.addExpense(req.user.id, body) });
 });
 
-router.delete('/expenses/:id', (req, res) => {
-  records.deleteExpense(req.user.id, parse(id, req.params.id));
+router.delete('/expenses/:id', async (req, res) => {
+  await records.deleteExpense(req.user.id, parse(id, req.params.id));
   res.json({ ok: true });
 });
 
-router.get('/harvests', (req, res) => res.json({ harvests: records.listHarvests(req.user.id, filterOf(req.query)) }));
+router.get('/harvests', async (req, res) => res.json({ harvests: await records.listHarvests(req.user.id, filterOf(req.query)) }));
 
-router.post('/harvests', (req, res) => {
+router.post('/harvests', async (req, res) => {
   const body = parse(
     z.object({
       plot_id: id.optional().nullable(),
@@ -51,11 +51,11 @@ router.post('/harvests', (req, res) => {
     }),
     req.body,
   );
-  res.status(201).json({ id: records.addHarvest(req.user.id, body) });
+  res.status(201).json({ id: await records.addHarvest(req.user.id, body) });
 });
 
-router.delete('/harvests/:id', (req, res) => {
-  records.deleteHarvest(req.user.id, parse(id, req.params.id));
+router.delete('/harvests/:id', async (req, res) => {
+  await records.deleteHarvest(req.user.id, parse(id, req.params.id));
   res.json({ ok: true });
 });
 

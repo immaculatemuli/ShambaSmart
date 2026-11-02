@@ -11,7 +11,7 @@ import { isoDate, parse } from '../validate.js';
 // Public lists the app needs before and after signing in: crops, counties, markets.
 const router = Router();
 
-router.get('/catalog', (req, res) => {
+router.get('/catalog', async (req, res) => {
   const lang = languageOf(req);
   const month = Number(nairobiToday().slice(5, 7));
   res.json({
@@ -26,7 +26,7 @@ router.get('/catalog', (req, res) => {
       nursery: c.calendar.some((s) => s.kind === 'nursery'),
     })),
     counties: COUNTIES,
-    markets: listMarkets(),
+    markets: await listMarkets(),
     expense_categories: EXPENSE_CATEGORIES,
     task_kinds: TASK_KINDS,
   });

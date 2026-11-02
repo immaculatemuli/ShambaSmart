@@ -37,7 +37,7 @@ before(async () => {
       },
     }),
   }));
-  server = createApp().listen(0);
+  server = (await createApp()).listen(0);
   await new Promise((resolve) => server.once('listening', resolve));
   base = `http://127.0.0.1:${server.address().port}/api`;
 });

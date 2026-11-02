@@ -7,11 +7,11 @@ import { id, isoDate, parse } from '../validate.js';
 
 const router = Router();
 
-router.get('/prices', (_req, res) => res.json({ crops: overview(CROP_KEYS) }));
+router.get('/prices', async (_req, res) => res.json({ crops: await overview(CROP_KEYS) }));
 
-router.get('/prices/:crop', (req, res) => res.json(cropPrices(req.params.crop)));
+router.get('/prices/:crop', async (req, res) => res.json(await cropPrices(req.params.crop)));
 
-router.post('/prices', (req, res) => {
+router.post('/prices', async (req, res) => {
   const body = parse(
     z.object({
       market_id: id,
@@ -21,7 +21,7 @@ router.post('/prices', (req, res) => {
     }),
     req.body,
   );
-  reportPrice(req.user.id, body);
+  await reportPrice(req.user.id, body);
   res.status(201).json({ ok: true });
 });
 

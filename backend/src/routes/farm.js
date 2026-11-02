@@ -20,31 +20,31 @@ const plotFields = {
   notes: note,
 };
 
-router.get('/plots', (req, res) => {
-  res.json({ plots: calendar.listPlots(req.user.id, languageOf(req)) });
+router.get('/plots', async (req, res) => {
+  res.json({ plots: await calendar.listPlots(req.user.id, languageOf(req)) });
 });
 
-router.post('/plots', (req, res) => {
+router.post('/plots', async (req, res) => {
   const body = parse(z.object(plotFields), req.body);
-  const plotId = calendar.createPlot(req.user.id, body);
+  const plotId = await calendar.createPlot(req.user.id, body);
   res.status(201).json({ id: plotId });
 });
 
-router.get('/plots/:id', (req, res) => {
+router.get('/plots/:id', async (req, res) => {
   const lang = languageOf(req);
   const plotId = parse(id, req.params.id);
-  const plot = calendar.describePlot(calendar.plotOf(req.user.id, plotId), lang);
+  const plot = calendar.describePlot(await calendar.plotOf(req.user.id, plotId), lang);
   res.json({
     plot,
-    tasks: calendar.listTasks(req.user.id, lang, { status: 'all', plotId }),
-    expenses: listExpenses(req.user.id, { plotId }),
-    harvests: listHarvests(req.user.id, { plotId }),
-    money: summary(req.user.id, { plotId }),
-    diagnoses: listDiagnoses(req.user.id).filter((d) => d.plot_id === plotId),
+    tasks: await calendar.listTasks(req.user.id, lang, { status: 'all', plotId }),
+    expenses: await listExpenses(req.user.id, { plotId }),
+    harvests: await listHarvests(req.user.id, { plotId }),
+    money: await summary(req.user.id, { plotId }),
+    diagnoses: (await listDiagnoses(req.user.id)).filter((d) => d.plot_id === plotId),
   });
 });
 
-router.patch('/plots/:id', (req, res) => {
+router.patch('/plots/:id', async (req, res) => {
   const body = parse(
     z.object({
       name: plotFields.name.optional(),
@@ -57,16 +57,16 @@ router.patch('/plots/:id', (req, res) => {
   );
   // Only fields that were sent are changed (note turns a missing field into null, so drop those).
   const changes = Object.fromEntries(Object.entries(body).filter(([k]) => k in (req.body ?? {})));
-  calendar.updatePlot(req.user.id, parse(id, req.params.id), changes);
+  await calendar.updatePlot(req.user.id, parse(id, req.params.id), changes);
   res.json({ ok: true });
 });
 
-router.delete('/plots/:id', (req, res) => {
-  calendar.deletePlot(req.user.id, parse(id, req.params.id));
+router.delete('/plots/:id', async (req, res) => {
+  await calendar.deletePlot(req.user.id, parse(id, req.params.id));
   res.json({ ok: true });
 });
 
-router.get('/tasks', (req, res) => {
+router.get('/tasks', async (req, res) => {
   const q = parse(
     z.object({
       status: z.enum(['open', 'done', 'all']).optional(),
@@ -76,10 +76,10 @@ router.get('/tasks', (req, res) => {
     }),
     req.query,
   );
-  res.json({ tasks: calendar.listTasks(req.user.id, languageOf(req), { ...q, plotId: q.plot_id }) });
+  res.json({ tasks: await calendar.listTasks(req.user.id, languageOf(req), { ...q, plotId: q.plot_id }) });
 });
 
-router.post('/tasks', (req, res) => {
+router.post('/tasks', async (req, res) => {
   const body = parse(
     z.object({
       plot_id: id.optional().nullable(),
@@ -90,19 +90,19 @@ router.post('/tasks', (req, res) => {
     }),
     req.body,
   );
-  res.status(201).json({ id: calendar.createTask(req.user.id, body) });
+  res.status(201).json({ id: await calendar.createTask(req.user.id, body) });
 });
 
-router.patch('/tasks/:id', (req, res) => {
+router.patch('/tasks/:id', async (req, res) => {
   const body = parse(z.object({ done: z.boolean().optional(), due_on: isoDate.optional() }), req.body);
   const taskId = parse(id, req.params.id);
-  if (body.done !== undefined) calendar.setTaskDone(req.user.id, taskId, body.done);
-  if (body.due_on) calendar.rescheduleTask(req.user.id, taskId, body.due_on);
+  if (body.done !== undefined) await calendar.setTaskDone(req.user.id, taskId, body.done);
+  if (body.due_on) await calendar.rescheduleTask(req.user.id, taskId, body.due_on);
   res.json({ ok: true });
 });
 
-router.delete('/tasks/:id', (req, res) => {
-  calendar.deleteTask(req.user.id, parse(id, req.params.id));
+router.delete('/tasks/:id', async (req, res) => {
+  await calendar.deleteTask(req.user.id, parse(id, req.params.id));
   res.json({ ok: true });
 });
 

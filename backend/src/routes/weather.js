@@ -14,8 +14,8 @@ async function weatherFor(user, lang) {
   if (user.latitude == null || user.longitude == null) return null;
   const today = nairobiToday();
   const forecast = await getForecast(user.latitude, user.longitude);
-  const plots = listPlots(user.id, lang).filter((p) => p.status === 'growing');
-  const tasks = listTasks(user.id, lang, { status: 'open', to: addDays(today, 7) });
+  const plots = (await listPlots(user.id, lang)).filter((p) => p.status === 'growing');
+  const tasks = await listTasks(user.id, lang, { status: 'open', to: addDays(today, 7) });
   return { ...forecast, alerts: buildAlerts({ days: forecast.days, plots, tasks, lang, today }) };
 }
 
@@ -36,16 +36,16 @@ router.get('/home', async (req, res) => {
   } catch (error) {
     weatherError = error.message;
   }
-  const plots = listPlots(req.user.id, lang);
+  const plots = await listPlots(req.user.id, lang);
   const monthStart = `${today.slice(0, 7)}-01`;
   res.json({
     today,
     user: req.user,
     weather,
     weather_error: weatherError,
-    tasks: listTasks(req.user.id, lang, { status: 'open', to: addDays(today, 7) }),
+    tasks: await listTasks(req.user.id, lang, { status: 'open', to: addDays(today, 7) }),
     plots: plots.filter((p) => p.status === 'growing'),
-    month: summary(req.user.id, { from: monthStart, to: today }),
+    month: await summary(req.user.id, { from: monthStart, to: today }),
   });
 });
 

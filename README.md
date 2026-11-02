@@ -20,7 +20,7 @@ A digital assistant for small-scale farmers in Kenya, in English and Kiswahili, 
 
 | Folder     | What it is                                                                                    |
 | ---------- | --------------------------------------------------------------------------------------------- |
-| `backend/` | Node 24 + Express 5 + SQLite (`node:sqlite`). The API at `/api`, and the built web app at `/`. |
+| `backend/` | Node 24 + Express 5. SQLite on your computer, PostgreSQL (Neon) online. The API at `/api`, the web app at `/`. |
 | `app/`     | Expo 57 (React Native, Expo Router). One codebase for Android, iOS and the web.               |
 
 Crop calendars live in `backend/src/catalog/crops.js` (9 crops, English and Kiswahili). Weather alert rules are in
@@ -46,16 +46,25 @@ yarn start                  # then scan the QR code with Expo Go on your phone
 On a phone, `EXPO_PUBLIC_API_URL` must be the laptop's address on the Wi-Fi (e.g. `http://192.168.1.20:4000`), not
 `localhost`.
 
-Checks: `cd backend && yarn test` (23 tests: calendars, alert rules, the AI client and the whole API, offline),
+Checks: `cd backend && yarn test` (23 tests: calendars, alert rules, the AI client and the whole API, offline; `yarn
+test:postgres` runs them on PostgreSQL),
 `cd app && yarn typecheck && yarn lint`.
 
-## Put it online
+## Put it online (free)
 
-- **Server and website**: `render.yaml` sets up one Render service that builds the web app and runs the backend.
-  Set `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` in Render's settings. It uses a persistent disk for the SQLite database, which needs a paid
-  instance; on Render's free plan the data would be wiped on each deploy.
-- **Phone app**: set your server's address in `app/eas.json`, then `npx eas-cli@latest build --profile preview
-  --platform android` for an installable APK.
+The website and server run on **Render's free plan**, with the data in a free **Neon** PostgreSQL database.
+`render.yaml` describes the whole setup.
+
+1. **Neon** (https://console.neon.tech): create a project named `shambasmart` (region: Frankfurt, near Render's),
+   then **Connect** and copy the connection string (`postgresql://...?sslmode=require`).
+2. **Render** (https://dashboard.render.com): **New → Blueprint**, pick the `ShambaSmart` GitHub repository, and
+   fill in `DATABASE_URL` (the Neon string) and, for photo checks, `CLOUDFLARE_ACCOUNT_ID` and
+   `CLOUDFLARE_API_TOKEN`. Render builds it and gives an address like `https://shambasmart.onrender.com`.
+3. **Phone app**: put that address in `app/eas.json`, then `npx eas-cli@latest build --profile preview
+   --platform android` for an installable APK.
+
+The free server sleeps after about 15 minutes without visitors and takes up to a minute to wake; the app waits for it.
+Every push to `main` on GitHub deploys again.
 
 ## Good to know
 

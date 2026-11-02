@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { authenticate } from './auth.js';
 import { seedMarkets } from './catalog/markets.js';
 import { config } from './config.js';
+import { initDb } from './db.js';
 import { HttpError } from './errors.js';
 import authRoutes from './routes/auth.js';
 import catalogRoutes from './routes/catalog.js';
@@ -32,8 +33,9 @@ function serveWebApp(app) {
   app.get(/^(?!\/api\/).*/, (_req, res) => res.sendFile(join(dir, 'index.html')));
 }
 
-export function createApp() {
-  seedMarkets();
+export async function createApp() {
+  await initDb();
+  await seedMarkets();
   const app = express();
   app.disable('x-powered-by');
   if (config.trustProxy) app.set('trust proxy', config.trustProxy);

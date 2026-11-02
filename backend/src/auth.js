@@ -8,7 +8,7 @@ export const signToken = (user) => jwt.sign({ sub: String(user.id) }, config.jwt
 
 export const USER_COLUMNS = 'id, name, phone, county, latitude, longitude';
 
-export function authenticate(req, _res, next) {
+export async function authenticate(req, _res, next) {
   const header = req.get('authorization') ?? '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
   if (!token) return next(new HttpError(401, 'UNAUTHENTICATED', 'Please sign in'));
@@ -18,7 +18,7 @@ export function authenticate(req, _res, next) {
   } catch {
     return next(new HttpError(401, 'UNAUTHENTICATED', 'Your sign-in has expired. Please sign in again'));
   }
-  const user = one(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`, Number(sub));
+  const user = await one(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`, Number(sub));
   if (!user) return next(new HttpError(401, 'UNAUTHENTICATED', 'Please sign in'));
   req.user = user;
   next();

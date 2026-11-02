@@ -25,12 +25,12 @@ router.post('/diagnoses', burst, async (req, res) => {
   res.status(201).json(await diagnosePhoto(req.user.id, body, languageOf(req)));
 });
 
-router.get('/diagnoses', (req, res) => res.json({ diagnoses: listDiagnoses(req.user.id) }));
+router.get('/diagnoses', async (req, res) => res.json({ diagnoses: await listDiagnoses(req.user.id) }));
 
-router.get('/diagnoses/:id', (req, res) => res.json(getDiagnosis(req.user.id, parse(id, req.params.id))));
+router.get('/diagnoses/:id', async (req, res) => res.json(await getDiagnosis(req.user.id, parse(id, req.params.id))));
 
-router.delete('/diagnoses/:id', (req, res) => {
-  deleteDiagnosis(req.user.id, parse(id, req.params.id));
+router.delete('/diagnoses/:id', async (req, res) => {
+  await deleteDiagnosis(req.user.id, parse(id, req.params.id));
   res.json({ ok: true });
 });
 

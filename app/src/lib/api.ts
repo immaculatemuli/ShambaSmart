@@ -31,10 +31,42 @@ export function configureAuth(token: string | null, handler?: () => void) {
 
 type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 
+// The free server falls asleep when nobody uses it and takes up to a minute to wake. After a quiet spell, knock on
+// /health (safe to repeat) until it answers before sending the real request, so that one is never lost or sent twice.
+const QUIET_MS = 10 * 60_000;
+const WAKE_FOR_MS = 75_000;
+let lastHeard = 0;
+let waking: Promise<void> | null = null;
+
+async function wakeServer() {
+  const until = Date.now() + WAKE_FOR_MS;
+  while (Date.now() < until) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20_000);
+    try {
+      if ((await fetch(`${apiUrl}/health`, { signal: controller.signal })).ok) {
+        lastHeard = Date.now();
+        return;
+      }
+    } catch {
+      // Still asleep (or no internet): try again shortly.
+    } finally {
+      clearTimeout(timer);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+  }
+}
+
 /** `timeoutMs`: how long to wait for the server (longer for a photo check on a slow network). */
 export async function api<T>(path: string, options: { method?: Method; body?: unknown; timeoutMs?: number } = {}): Promise<T> {
   if (!apiUrl && Platform.OS !== 'web') {
     throw new ApiError(0, 'NO_SERVER', t('The app has no server address. Set EXPO_PUBLIC_API_URL and restart.'));
+  }
+  if (Date.now() - lastHeard > QUIET_MS) {
+    waking ??= wakeServer().finally(() => {
+      waking = null;
+    });
+    await waking;
   }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 30_000);
@@ -56,6 +88,7 @@ export async function api<T>(path: string, options: { method?: Method; body?: un
   } finally {
     clearTimeout(timer);
   }
+  lastHeard = Date.now();
   const data = await res.json().catch(() => null);
   if (!res.ok) {
     if (res.status === 401 && authToken) onUnauthorized();

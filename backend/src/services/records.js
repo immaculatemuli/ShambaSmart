@@ -1,10 +1,10 @@
-import { all, EXPENSE_CATEGORIES, one, run } from '../db.js';
+import { all, EXPENSE_CATEGORIES, insert, one, run } from '../db.js';
 import { notFound } from '../errors.js';
 
 // Expense and harvest records, and the money summary (spent, earned, profit) for a period and per plot.
 
-function checkPlot(userId, plotId) {
-  if (plotId && !one('SELECT 1 FROM plots WHERE id = ? AND user_id = ?', plotId, userId)) throw notFound('Plot');
+async function checkPlot(userId, plotId) {
+  if (plotId && !(await one('SELECT 1 AS ok FROM plots WHERE id = ? AND user_id = ?', plotId, userId))) throw notFound('Plot');
 }
 
 /** WHERE conditions for a date column and an optional plot (`alias`: the table's prefix, e.g. 'e.'). */
@@ -36,9 +36,9 @@ export function listExpenses(userId, filter = {}) {
   );
 }
 
-export function addExpense(userId, { plot_id, category, amount, spent_on, note }) {
-  checkPlot(userId, plot_id);
-  const { lastInsertRowid } = run(
+export async function addExpense(userId, { plot_id, category, amount, spent_on, note }) {
+  await checkPlot(userId, plot_id);
+  return insert(
     'INSERT INTO expenses (user_id, plot_id, category, amount, spent_on, note) VALUES (?, ?, ?, ?, ?, ?)',
     userId,
     plot_id ?? null,
@@ -47,11 +47,10 @@ export function addExpense(userId, { plot_id, category, amount, spent_on, note }
     spent_on,
     note ?? null,
   );
-  return Number(lastInsertRowid);
 }
 
-export function deleteExpense(userId, id) {
-  if (!run('DELETE FROM expenses WHERE id = ? AND user_id = ?', id, userId).changes) throw notFound('Expense');
+export async function deleteExpense(userId, id) {
+  if (!(await run('DELETE FROM expenses WHERE id = ? AND user_id = ?', id, userId)).changes) throw notFound('Expense');
 }
 
 export function listHarvests(userId, filter = {}) {
@@ -64,9 +63,9 @@ export function listHarvests(userId, filter = {}) {
   );
 }
 
-export function addHarvest(userId, { plot_id, crop, quantity, unit, income, harvested_on, note }) {
-  checkPlot(userId, plot_id);
-  const { lastInsertRowid } = run(
+export async function addHarvest(userId, { plot_id, crop, quantity, unit, income, harvested_on, note }) {
+  await checkPlot(userId, plot_id);
+  return insert(
     'INSERT INTO harvests (user_id, plot_id, crop, quantity, unit, income, harvested_on, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
     userId,
     plot_id ?? null,
@@ -77,35 +76,39 @@ export function addHarvest(userId, { plot_id, crop, quantity, unit, income, harv
     harvested_on,
     note ?? null,
   );
-  return Number(lastInsertRowid);
 }
 
-export function deleteHarvest(userId, id) {
-  if (!run('DELETE FROM harvests WHERE id = ? AND user_id = ?', id, userId).changes) throw notFound('Harvest');
+export async function deleteHarvest(userId, id) {
+  if (!(await run('DELETE FROM harvests WHERE id = ? AND user_id = ?', id, userId)).changes) throw notFound('Harvest');
 }
 
 /** Money in and out for a period (and optionally one plot): totals, spending by category, and per plot. */
-export function summary(userId, filter = {}) {
+export async function summary(userId, filter = {}) {
   const e = range('spent_on', filter);
   const h = range('harvested_on', filter);
-  const spent = one(`SELECT COALESCE(SUM(amount), 0) AS n FROM expenses WHERE user_id = ?${e.sql}`, userId, ...e.params).n;
-  const earned = one(`SELECT COALESCE(SUM(income), 0) AS n FROM harvests WHERE user_id = ?${h.sql}`, userId, ...h.params).n;
-  const byCategory = all(
+  const spent = (await one(`SELECT COALESCE(SUM(amount), 0) AS n FROM expenses WHERE user_id = ?${e.sql}`, userId, ...e.params)).n;
+  const earned = (await one(`SELECT COALESCE(SUM(income), 0) AS n FROM harvests WHERE user_id = ?${h.sql}`, userId, ...h.params)).n;
+  const byCategory = await all(
     `SELECT category, SUM(amount) AS amount FROM expenses WHERE user_id = ?${e.sql} GROUP BY category ORDER BY amount DESC`,
     userId,
     ...e.params,
   );
-  const plots = all('SELECT id, name, crop, status FROM plots WHERE user_id = ? ORDER BY planted_on DESC', userId);
+
+  // Per plot, in two grouped queries rather than two per plot.
+  const pe = range('spent_on', { ...filter, plotId: undefined });
+  const ph = range('harvested_on', { ...filter, plotId: undefined });
+  const spentBy = await all(`SELECT plot_id, SUM(amount) AS n FROM expenses WHERE user_id = ? AND plot_id IS NOT NULL${pe.sql} GROUP BY plot_id`, userId, ...pe.params);
+  const earnedBy = await all(`SELECT plot_id, SUM(income) AS n FROM harvests WHERE user_id = ? AND plot_id IS NOT NULL${ph.sql} GROUP BY plot_id`, userId, ...ph.params);
+  const plots = await all('SELECT id, name, crop, status FROM plots WHERE user_id = ? ORDER BY planted_on DESC', userId);
   const byPlot = plots
     .filter((p) => !filter.plotId || p.id === filter.plotId)
     .map((p) => {
-      const pe = range('spent_on', { ...filter, plotId: p.id });
-      const ph = range('harvested_on', { ...filter, plotId: p.id });
-      const plotSpent = one(`SELECT COALESCE(SUM(amount), 0) AS n FROM expenses WHERE user_id = ?${pe.sql}`, userId, ...pe.params).n;
-      const plotEarned = one(`SELECT COALESCE(SUM(income), 0) AS n FROM harvests WHERE user_id = ?${ph.sql}`, userId, ...ph.params).n;
+      const plotSpent = spentBy.find((r) => r.plot_id === p.id)?.n ?? 0;
+      const plotEarned = earnedBy.find((r) => r.plot_id === p.id)?.n ?? 0;
       return { plot_id: p.id, name: p.name, crop: p.crop, status: p.status, spent: plotSpent, earned: plotEarned, profit: plotEarned - plotSpent };
     })
     .filter((p) => p.spent || p.earned);
+
   return {
     spent,
     earned,

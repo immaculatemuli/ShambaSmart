@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { cropByKey } from '../catalog/crops.js';
 import { config } from '../config.js';
-import { all, one, run } from '../db.js';
+import { all, insert, one, run } from '../db.js';
 import { HttpError, notFound } from '../errors.js';
 import { askVisionModel } from './vision.js';
 
@@ -96,8 +96,9 @@ export const setModelCall = (fn) => {
   askModel = fn;
 };
 
-function checkDailyLimit(userId) {
-  const { n } = one("SELECT COUNT(*) AS n FROM diagnoses WHERE user_id = ? AND created_at >= strftime('%Y-%m-%dT00:00:00Z','now')", userId);
+async function checkDailyLimit(userId) {
+  const startOfDay = `${new Date().toISOString().slice(0, 10)}T00:00:00Z`;
+  const { n } = await one('SELECT COUNT(*) AS n FROM diagnoses WHERE user_id = ? AND created_at >= ?', userId, startOfDay);
   if (n >= config.diagnosesPerDay) {
     throw new HttpError(429, 'DAILY_LIMIT', `You have used today's ${config.diagnosesPerDay} photo checks. Please try again tomorrow`);
   }
@@ -117,8 +118,8 @@ function readAnswer(answer) {
 export async function diagnosePhoto(userId, { image, media_type, crop, plot_id, note }, lang) {
   const bytes = Math.floor((image.length * 3) / 4);
   if (bytes > MAX_IMAGE_BYTES) throw new HttpError(413, 'IMAGE_TOO_LARGE', 'The photo is too large. Please take it again at a lower quality');
-  if (plot_id && !one('SELECT 1 FROM plots WHERE id = ? AND user_id = ?', plot_id, userId)) throw notFound('Plot');
-  checkDailyLimit(userId);
+  if (plot_id && !(await one('SELECT 1 AS ok FROM plots WHERE id = ? AND user_id = ?', plot_id, userId))) throw notFound('Plot');
+  await checkDailyLimit(userId);
 
   const cropName = crop ? (cropByKey(crop)?.name.en ?? crop) : null;
   const context = [
@@ -139,28 +140,29 @@ export async function diagnosePhoto(userId, { image, media_type, crop, plot_id, 
     throw new HttpError(502, 'BAD_ANSWER', 'The photo check did not finish. Please try again');
   }
 
-  const { lastInsertRowid } = run(
+  const id = await insert(
     'INSERT INTO diagnoses (user_id, plot_id, crop, result) VALUES (?, ?, ?, ?)',
     userId,
     plot_id ?? null,
     crop ?? null,
     JSON.stringify(result),
   );
-  return { id: Number(lastInsertRowid), crop: crop ?? null, plot_id: plot_id ?? null, created_at: new Date().toISOString(), result };
+  return { id, crop: crop ?? null, plot_id: plot_id ?? null, created_at: new Date().toISOString(), result };
 }
 
 const fromRow = (row) => ({ ...row, result: JSON.parse(row.result) });
 
-export function listDiagnoses(userId) {
-  return all(
+export async function listDiagnoses(userId) {
+  const rows = await all(
     `SELECT d.id, d.plot_id, d.crop, d.result, d.created_at, p.name AS plot_name
      FROM diagnoses d LEFT JOIN plots p ON p.id = d.plot_id WHERE d.user_id = ? ORDER BY d.id DESC LIMIT 50`,
     userId,
-  ).map(fromRow);
+  );
+  return rows.map(fromRow);
 }
 
-export function getDiagnosis(userId, id) {
-  const row = one(
+export async function getDiagnosis(userId, id) {
+  const row = await one(
     `SELECT d.id, d.plot_id, d.crop, d.result, d.created_at, p.name AS plot_name
      FROM diagnoses d LEFT JOIN plots p ON p.id = d.plot_id WHERE d.id = ? AND d.user_id = ?`,
     id,
@@ -170,7 +172,7 @@ export function getDiagnosis(userId, id) {
   return fromRow(row);
 }
 
-export function deleteDiagnosis(userId, id) {
-  getDiagnosis(userId, id);
-  run('DELETE FROM diagnoses WHERE id = ?', id);
+export async function deleteDiagnosis(userId, id) {
+  await getDiagnosis(userId, id);
+  await run('DELETE FROM diagnoses WHERE id = ?', id);
 }

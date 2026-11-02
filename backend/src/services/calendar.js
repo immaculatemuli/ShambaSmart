@@ -1,5 +1,5 @@
 import { cropByKey } from '../catalog/crops.js';
-import { all, NOW, one, run, transaction } from '../db.js';
+import { all, insert, NOW, one, run, transaction } from '../db.js';
 import { notFound } from '../errors.js';
 import { pick } from '../lang.js';
 import { addDays, daysBetween, nairobiToday } from '../util.js';
@@ -18,8 +18,8 @@ export function calendarTasks(cropKey, plantedOn, today = nairobiToday()) {
 }
 
 export function createPlot(userId, { name, crop, variety, size_acres, planted_on, notes }) {
-  return transaction(() => {
-    const { lastInsertRowid: plotId } = run(
+  return transaction(async (tx) => {
+    const plotId = await tx.insert(
       'INSERT INTO plots (user_id, name, crop, variety, size_acres, planted_on, notes) VALUES (?, ?, ?, ?, ?, ?, ?)',
       userId,
       name,
@@ -30,7 +30,7 @@ export function createPlot(userId, { name, crop, variety, size_acres, planted_on
       notes ?? null,
     );
     for (const s of calendarTasks(crop, planted_on)) {
-      run(
+      await tx.run(
         `INSERT INTO tasks (user_id, plot_id, kind, title, title_sw, details, details_sw, due_on, source)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'calendar')`,
         userId,
@@ -43,12 +43,12 @@ export function createPlot(userId, { name, crop, variety, size_acres, planted_on
         s.due_on,
       );
     }
-    return Number(plotId);
+    return plotId;
   });
 }
 
-export function plotOf(userId, plotId) {
-  const plot = one('SELECT * FROM plots WHERE id = ? AND user_id = ?', plotId, userId);
+export async function plotOf(userId, plotId) {
+  const plot = await one('SELECT * FROM plots WHERE id = ? AND user_id = ?', plotId, userId);
   if (!plot) throw notFound('Plot');
   return plot;
 }
@@ -68,32 +68,34 @@ export function describePlot(plot, lang, today = nairobiToday()) {
   };
 }
 
-export function listPlots(userId, lang) {
-  const plots = all(
+export async function listPlots(userId, lang) {
+  const plots = await all(
     `SELECT p.*,
        (SELECT COUNT(*) FROM tasks t WHERE t.plot_id = p.id AND t.done_at IS NULL) AS open_tasks,
        (SELECT MIN(t.due_on) FROM tasks t WHERE t.plot_id = p.id AND t.done_at IS NULL) AS next_task_on
-     FROM plots p WHERE p.user_id = ? ORDER BY p.status = 'harvested', p.planted_on DESC`,
+     FROM plots p WHERE p.user_id = ? ORDER BY CASE WHEN p.status = 'harvested' THEN 1 ELSE 0 END, p.planted_on DESC`,
     userId,
   );
   return plots.map((p) => describePlot(p, lang));
 }
 
-export function updatePlot(userId, plotId, changes) {
-  plotOf(userId, plotId);
-  const fields = Object.entries(changes).filter(([, v]) => v !== undefined);
+const PLOT_FIELDS = ['name', 'variety', 'size_acres', 'notes', 'status'];
+
+export async function updatePlot(userId, plotId, changes) {
+  await plotOf(userId, plotId);
+  const fields = Object.entries(changes).filter(([k, v]) => PLOT_FIELDS.includes(k) && v !== undefined);
   if (fields.length) {
-    run(`UPDATE plots SET ${fields.map(([k]) => `${k} = ?`).join(', ')} WHERE id = ?`, ...fields.map(([, v]) => v), plotId);
+    await run(`UPDATE plots SET ${fields.map(([k]) => `${k} = ?`).join(', ')} WHERE id = ?`, ...fields.map(([, v]) => v), plotId);
   }
   // A harvested plot's remaining calendar steps are no longer needed.
   if (changes.status === 'harvested') {
-    run("DELETE FROM tasks WHERE plot_id = ? AND done_at IS NULL AND source = 'calendar'", plotId);
+    await run("DELETE FROM tasks WHERE plot_id = ? AND done_at IS NULL AND source = 'calendar'", plotId);
   }
 }
 
-export function deletePlot(userId, plotId) {
-  plotOf(userId, plotId);
-  run('DELETE FROM plots WHERE id = ?', plotId);
+export async function deletePlot(userId, plotId) {
+  await plotOf(userId, plotId);
+  await run('DELETE FROM plots WHERE id = ?', plotId);
 }
 
 const TASK_SELECT = `SELECT t.*, p.name AS plot_name, p.crop AS plot_crop FROM tasks t LEFT JOIN plots p ON p.id = t.plot_id`;
@@ -111,7 +113,7 @@ export function localizeTask(task, lang) {
  * The farmer's tasks. status: 'open' (not done), 'done', or 'all'. from/to limit the due date (open tasks that are
  * overdue are always included with 'open' so nothing slips).
  */
-export function listTasks(userId, lang, { status = 'open', from, to, plotId } = {}) {
+export async function listTasks(userId, lang, { status = 'open', from, to, plotId } = {}) {
   const where = ['t.user_id = ?'];
   const params = [userId];
   if (status === 'open') where.push('t.done_at IS NULL');
@@ -129,12 +131,13 @@ export function listTasks(userId, lang, { status = 'open', from, to, plotId } = 
     params.push(to);
   }
   const order = status === 'done' ? 't.done_at DESC' : 't.due_on, t.id';
-  return all(`${TASK_SELECT} WHERE ${where.join(' AND ')} ORDER BY ${order} LIMIT 300`, ...params).map((t) => localizeTask(t, lang));
+  const rows = await all(`${TASK_SELECT} WHERE ${where.join(' AND ')} ORDER BY ${order} LIMIT 300`, ...params);
+  return rows.map((t) => localizeTask(t, lang));
 }
 
-export function createTask(userId, { plot_id, kind, title, details, due_on }) {
-  if (plot_id) plotOf(userId, plot_id);
-  const { lastInsertRowid } = run(
+export async function createTask(userId, { plot_id, kind, title, details, due_on }) {
+  if (plot_id) await plotOf(userId, plot_id);
+  return insert(
     "INSERT INTO tasks (user_id, plot_id, kind, title, details, due_on, source) VALUES (?, ?, ?, ?, ?, ?, 'manual')",
     userId,
     plot_id ?? null,
@@ -143,27 +146,26 @@ export function createTask(userId, { plot_id, kind, title, details, due_on }) {
     details ?? null,
     due_on,
   );
-  return Number(lastInsertRowid);
 }
 
-function taskOf(userId, taskId) {
-  const task = one('SELECT * FROM tasks WHERE id = ? AND user_id = ?', taskId, userId);
+async function taskOf(userId, taskId) {
+  const task = await one('SELECT * FROM tasks WHERE id = ? AND user_id = ?', taskId, userId);
   if (!task) throw notFound('Task');
   return task;
 }
 
-export function setTaskDone(userId, taskId, done) {
-  taskOf(userId, taskId);
-  run(`UPDATE tasks SET done_at = ${done ? NOW : 'NULL'} WHERE id = ?`, taskId);
+export async function setTaskDone(userId, taskId, done) {
+  await taskOf(userId, taskId);
+  await run(`UPDATE tasks SET done_at = ${done ? NOW : 'NULL'} WHERE id = ?`, taskId);
 }
 
 /** Moves a task to another day (e.g. rain is coming, so spraying waits). */
-export function rescheduleTask(userId, taskId, dueOn) {
-  taskOf(userId, taskId);
-  run('UPDATE tasks SET due_on = ? WHERE id = ?', dueOn, taskId);
+export async function rescheduleTask(userId, taskId, dueOn) {
+  await taskOf(userId, taskId);
+  await run('UPDATE tasks SET due_on = ? WHERE id = ?', dueOn, taskId);
 }
 
-export function deleteTask(userId, taskId) {
-  taskOf(userId, taskId);
-  run('DELETE FROM tasks WHERE id = ?', taskId);
+export async function deleteTask(userId, taskId) {
+  await taskOf(userId, taskId);
+  await run('DELETE FROM tasks WHERE id = ?', taskId);
 }

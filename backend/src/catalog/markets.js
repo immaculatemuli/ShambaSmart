@@ -1,4 +1,4 @@
-import { all, one, run, transaction } from '../db.js';
+import { all, one, transaction } from '../db.js';
 import { nairobiToday } from '../util.js';
 
 // Main wholesale markets, and rough guide prices (KES per kg) ShambaSmart starts with so the price screen is not
@@ -22,14 +22,14 @@ const GUIDE_PRICE = { maize: 45, beans: 120, tomatoes: 70, kale: 35, cabbage: 30
 const MARKET_FACTOR = [1.1, 1.15, 1.0, 0.95, 0.9, 0.95, 1.0, 0.95, 0.88, 1.05];
 
 /** Adds the markets and sample prices to an empty database (does nothing once there are markets). */
-export function seedMarkets() {
-  if (one('SELECT COUNT(*) AS n FROM markets').n > 0) return;
+export async function seedMarkets() {
+  if ((await one('SELECT COUNT(*) AS n FROM markets')).n > 0) return;
   const today = nairobiToday();
-  transaction(() => {
-    MARKETS.forEach(([name, county], i) => {
-      const { lastInsertRowid: marketId } = run('INSERT INTO markets (name, county) VALUES (?, ?)', name, county);
+  await transaction(async (tx) => {
+    for (const [i, [name, county]] of MARKETS.entries()) {
+      const marketId = await tx.insert('INSERT INTO markets (name, county) VALUES (?, ?)', name, county);
       for (const [crop, price] of Object.entries(GUIDE_PRICE)) {
-        run(
+        await tx.run(
           "INSERT INTO prices (market_id, crop, price_per_kg, source, observed_on) VALUES (?, ?, ?, 'sample', ?)",
           marketId,
           crop,
@@ -37,7 +37,7 @@ export function seedMarkets() {
           today,
         );
       }
-    });
+    }
   });
 }
 

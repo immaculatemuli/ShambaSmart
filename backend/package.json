@@ -1,0 +1,22 @@
+{
+  "name": "shambasmart-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ShambaSmart backend: crop calendar, weather alerts, photo crop checks, market prices and farm records for small-scale farmers",
+  "type": "module",
+  "packageManager": "yarn@1.22.22",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/server.js",
+    "dev": "node --watch --env-file-if-exists=.env src/server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "zod": "^3.25.76"
+  }
+}

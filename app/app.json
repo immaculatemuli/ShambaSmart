@@ -1,0 +1,62 @@
+{
+  "expo": {
+    "name": "ShambaSmart",
+    "slug": "shambasmart",
+    "scheme": "shambasmart",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.shambasmart.app"
+    },
+    "android": {
+      "package": "com.shambasmart.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#1F7A3A",
+        "foregroundImage": "./assets/adaptive-icon.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": ["android.permission.CAMERA", "android.permission.ACCESS_COARSE_LOCATION"]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "single",
+      "name": "ShambaSmart — Farmer Companion",
+      "shortName": "ShambaSmart",
+      "themeColor": "#1F7A3A",
+      "backgroundColor": "#F4F6F2"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      "expo-secure-store",
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Allow ShambaSmart to use your camera to photograph sick crops for a health check.",
+          "photosPermission": "Allow ShambaSmart to choose a crop photo from your gallery for a health check.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "ShambaSmart uses your location only to show the weather forecast for your farm."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#1F7A3A"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
+}

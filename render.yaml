@@ -1,0 +1,40 @@
+# ShambaSmart on Render (Render "Blueprint"): one web service serves the API at /api and the web app at /.
+# The database is SQLite on a persistent disk. Disks need a paid instance (Starter); on the free plan the disk is
+# wiped on every deploy and restart, so farmers' records would be lost.
+# No secrets in this file: Render makes JWT_SECRET, and the Cloudflare details are typed into Render's settings page.
+services:
+  - type: web
+    name: shambasmart
+    runtime: node
+    plan: starter
+    region: frankfurt
+    # The web app is built first (it needs its development tools), then the server's own packages.
+    buildCommand: >-
+      cd app && yarn install --frozen-lockfile --production=false && yarn build:web &&
+      cd ../backend && yarn install --frozen-lockfile --production=true
+    startCommand: cd backend && node src/server.js
+    healthCheckPath: /health
+    disk:
+      name: data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: NODE_ENV
+        value: production
+      # Render's front door passes on the visitor's address (used for the sign-in rate limit).
+      - key: TRUST_PROXY
+        value: "1"
+      - key: DB_PATH
+        value: /var/data/shambasmart.db
+      - key: JWT_SECRET
+        generateValue: true
+      # Llama 4 Scout on Cloudflare Workers AI reads the crop photos (free account; see backend/.env.example).
+      # Empty: the photo check says it is not set up.
+      - key: CLOUDFLARE_ACCOUNT_ID
+        sync: false
+      - key: CLOUDFLARE_API_TOKEN
+        sync: false
+      - key: DIAGNOSES_PER_DAY
+        value: "10"

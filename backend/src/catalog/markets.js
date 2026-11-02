@@ -28,15 +28,12 @@ export async function seedMarkets() {
   await transaction(async (tx) => {
     for (const [i, [name, county]] of MARKETS.entries()) {
       const marketId = await tx.insert('INSERT INTO markets (name, county) VALUES (?, ?)', name, county);
-      for (const [crop, price] of Object.entries(GUIDE_PRICE)) {
-        await tx.run(
-          "INSERT INTO prices (market_id, crop, price_per_kg, source, observed_on) VALUES (?, ?, ?, 'sample', ?)",
-          marketId,
-          crop,
-          Math.round(price * MARKET_FACTOR[i]),
-          today,
-        );
-      }
+      // One statement per market (not per price): an online database is a network trip away.
+      const crops = Object.entries(GUIDE_PRICE);
+      await tx.run(
+        `INSERT INTO prices (market_id, crop, price_per_kg, source, observed_on) VALUES ${crops.map(() => "(?, ?, ?, 'sample', ?)").join(', ')}`,
+        ...crops.flatMap(([crop, price]) => [marketId, crop, Math.round(price * MARKET_FACTOR[i]), today]),
+      );
     }
   });
 }

@@ -25,7 +25,8 @@ services:
         value: "1"
       - key: DB_ENGINE
         value: postgres
-      # Neon's connection string (Neon dashboard → your project → Connect), ending in ?sslmode=require.
+      # Neon's connection string (Neon dashboard → your project → Connect). Use sslmode=verify-full in place of
+      # sslmode=require: the connection is checked the same, without the database driver's warning.
       - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET

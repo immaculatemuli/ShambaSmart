@@ -88,6 +88,8 @@ export interface Alert {
 }
 
 export interface Weather {
+  /** Which free service gave the forecast. */
+  source: 'open-meteo' | 'met-norway';
   latitude: number;
   longitude: number;
   current: { temperature: number; code: number } | null;

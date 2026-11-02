@@ -58,7 +58,7 @@ export default function WeatherScreen() {
           );
         })}
       </Card>
-      <Muted>{t('Forecast from Open-Meteo, updated every hour.')}</Muted>
+      <Muted>{t('Forecast from {source}, updated every hour.', { source: weather.data.source === 'met-norway' ? 'MET Norway (yr.no)' : 'Open-Meteo' })}</Muted>
     </Screen>
   );
 }

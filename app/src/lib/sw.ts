@@ -115,7 +115,7 @@ export const SW: Record<string, string> = {
   'Next 7 days': 'Siku 7 zijazo',
   'Rain {mm} mm': 'Mvua mm {mm}',
   'wind {n} km/h': 'upepo km {n}/saa',
-  'Forecast from Open-Meteo, updated every hour.': 'Utabiri kutoka Open-Meteo, husasishwa kila saa.',
+  'Forecast from {source}, updated every hour.': 'Utabiri kutoka {source}, husasishwa kila saa.',
   Sunny: 'Jua',
   'Partly cloudy': 'Mawingu kiasi',
   Cloudy: 'Mawingu',

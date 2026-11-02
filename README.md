@@ -4,7 +4,8 @@ A digital assistant for small-scale farmers in Kenya, in English and Kiswahili, 
 
 - **Crop calendar and farm activities**: add a plot (crop, size, planting day) and the season's work is laid out for
   you: land preparation, planting, weeding, top-dressing, pest checks, harvest. Tick tasks off, move them, add your own.
-- **Weather alerts and planting reminders**: a 7-day forecast for your county or GPS position (Open-Meteo, free, no key),
+- **Weather alerts and planting reminders**: a 7-day forecast for your county or GPS position (Open-Meteo, or MET Norway when
+  Open-Meteo is busy; both free, no key),
   with plain-language alerts for heavy rain, spraying or fertilizer planned on a wet day (and a better day for it), dry
   weeks, heat, cold nights, strong wind, blight weather for tomatoes and potatoes, and the start of the long and short
   rains. On phones, a reminder at 7 a.m. on the day each task is due.
